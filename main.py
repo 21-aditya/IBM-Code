@@ -1,16 +1,18 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_mysqldb import MySQL
 import MySQLdb.cursors
-import re
+import re, os
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = 'abc123'
-
+UPLOAD_FOLDER = os.path.join('static', 'uploads')
 # Enter your database connection details below
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = 'Jan2021!'
 app.config['MYSQL_DB'] = 'ibmproj'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 mysql = MySQL(app)
 
@@ -41,7 +43,7 @@ def login():
             msg = 'Incorrect username/password!'
     # Show the login form with message (if any)
     return render_template('index.html', msg=msg)
-    
+
 @app.route('/logout')
 def logout():
     # Remove session data, this will log the user out
@@ -50,6 +52,21 @@ def logout():
    session.pop('username', None)
    # Redirect to login page
    return redirect(url_for('login'))
+
+@app.route('/uploaded', methods=['GET','POST'])
+def uploaded():
+    if request.method=='POST':
+        imagereceived = request.files['imageUpload']
+        img_filename = secure_filename(imagereceived.filename)
+        imagereceived.save(os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+        print(imagereceived)
+        return redirect(url_for('showimage', filename=img_filename))
+    return render_template('home.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+
+@app.route('/showimage')
+def showimage():
+    img_filename = request.args['filename']
+    return render_template('showimage.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
