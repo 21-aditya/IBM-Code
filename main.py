@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, redirect, url_for, session
-from flask_mysqldb import MySQL
+import os
+import re
+
 import MySQLdb.cursors
-import re, os
+from flask import Flask, redirect, render_template, request, session, url_for
+from flask_mysqldb import MySQL
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
