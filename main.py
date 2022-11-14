@@ -1,14 +1,34 @@
-import os
-import re
-
+import os,re
 import MySQLdb.cursors
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_mysqldb import MySQL
 from werkzeug.utils import secure_filename
+from ibm_watson_machine_learning import APIClient
+import tarfile
+from keras.models import load_model
+from keras.preprocessing import image
+import numpy as np
+
+WMLCredentials = {
+    "url": "https://eu-de.ml.cloud.ibm.com",
+    "apikey": "otPqZJ572G9Kvgqd5eTuHSeZ-ktrTokqdXvWd8kaFXLv"
+}
+client = APIClient(WMLCredentials)
+client.set.default_space("12f0d23b-8918-45db-a632-01c21bee5035")
+model_id = "7a55f72e-8a35-4f60-891e-ae833db7f9d6"
+
+try:
+    client.repository.download(model_id, 'dn.tgz')
+    model = tarfile.open('dn.tgz')
+    model.extractall('/Users/adityaramachandran/Library/CloudStorage/OneDrive-Personal/Documents/Sem-7/IBM-Project/IBM-Code')
+    model.close()
+except:
+    print("File exists!!")
 
 app = Flask(__name__)
 app.secret_key = 'abc123'
 UPLOAD_FOLDER = os.path.join('static', 'uploads')
+
 # Enter your database connection details below
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
@@ -20,8 +40,7 @@ mysql = MySQL(app)
 
 @app.route('/', methods=['GET', 'POST'])
 def login():
-    # Output message if something goes wrong...
-    msg = ''
+    msg = '' # Output message
     if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
         # Create variables for easy access
         username = request.form['username']
@@ -57,18 +76,32 @@ def logout():
 
 @app.route('/uploaded', methods=['GET','POST'])
 def uploaded():
-    if request.method=='POST':
-        imagereceived = request.files['imageUpload']
-        img_filename = secure_filename(imagereceived.filename)
-        imagereceived.save(os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
-        print(imagereceived)
-        return redirect(url_for('showimage', filename=img_filename))
-    return render_template('home.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+    if 'loggedin' in session:
+        if request.method=='POST':
+            imagereceived = request.files['imageUpload']
+            img_filename = secure_filename(imagereceived.filename)
+            imagereceived.save(os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+            print(imagereceived)
+            return redirect(url_for('showimage', filename=img_filename))
+        return render_template('home.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+    return redirect(url_for('login'))
 
 @app.route('/showimage')
 def showimage():
-    img_filename = request.args['filename']
-    return render_template('showimage.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+    if 'loggedin' in session:
+        img_filename = request.args['filename']
+        model = load_model('model_wo_aug.h5')
+        classes = ['Corpse Flower','Great Indian Bustard Bird','Lady Slipper Orchid Flower',
+                   'Pangolin Mammal','Senenca White Deer Mammal','Spoon Billed Sandpiper Bird']
+
+        img = image.load_img(os.path.join(app.config['UPLOAD_FOLDER'], img_filename), target_size=(64, 64))
+        img = image.img_to_array(img)
+        img = np.expand_dims(img, axis=0)
+        pred = np.argmax(model.predict(img), axis=1)
+        print(pred)
+        print('Prediction: ', classes[pred[0]])
+        return render_template('showimage.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -83,7 +116,7 @@ def register():
         # Check if account exists using MySQL
         cursor = mysql.connection.cursor(MySQLdb.cursors.DictCursor)
         cursor.execute(
-            'SELECT * FROM accounts WHERE username = %s', (username,))
+            'SELECT * FROM accounts WHERE username = %s OR email = %s', (username,email))
         account = cursor.fetchone()
         # If account exists show error and validation checks
         if account:
@@ -128,3 +161,27 @@ def profile():
         return render_template('profile.html', account=account)
     # User is not loggedin redirect to login page
     return redirect(url_for('login'))
+
+
+@app.route('/history')
+def history():
+    # ---------INSERTING AN IMAGE-----------
+    '''
+    cursor = mysql.connection.cursor()
+    file = open('static/apple_colour.jpg','rb').read()
+    file = base64.b64encode(file) # We must encode the file to get base64 string
+    cursor.execute('INSERT INTO IMAGETABLE (IMAGE) VALUES (%s)', (file,))
+    mysql.connection.commit()
+    '''
+    # ----------SELECTING AN IMAGE----------
+    '''
+    cursor = mysql.connection.cursor()
+    cursor.execute('SELECT IMAGE FROM IMAGETABLE WHERE ID = 1 ')
+    data = cursor.fetchall()
+    # The returned data will be a list of lists
+    image = data[0][0]
+    # Decode the string
+    binary_data = base64.b64decode(image)
+    image = Image.open(io.BytesIO(binary_data))
+    '''
+    return render_template('carousel.html')
