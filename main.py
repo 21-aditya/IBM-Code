@@ -1,10 +1,11 @@
-import os,re
+import os,re,io
 import MySQLdb.cursors
+from PIL import Image
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_mysqldb import MySQL
 from werkzeug.utils import secure_filename
 from ibm_watson_machine_learning import APIClient
-import tarfile
+import tarfile,base64
 from keras.models import load_model
 from keras.preprocessing import image
 import numpy as np
@@ -100,7 +101,15 @@ def showimage():
         pred = np.argmax(model.predict(img), axis=1)
         print(pred)
         print('Prediction: ', classes[pred[0]])
-        return render_template('showimage.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename))
+        cursor = mysql.connection.cursor()
+        fil = open(os.path.join(app.config['UPLOAD_FOLDER'], img_filename), 'rb').read()
+        # We must encode the file to get base64 string
+        fil = base64.b64encode(fil)
+        cursor.execute('INSERT INTO imagetable (photo,username,pred) VALUES (%s,%s,%s)',
+                       (fil, session['username'], classes[pred[0]]))
+        mysql.connection.commit()
+        return render_template(
+            'showimage.html', uploaded_image=os.path.join(app.config['UPLOAD_FOLDER'], img_filename), prediction=classes[pred[0]])
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -165,23 +174,19 @@ def profile():
 
 @app.route('/history')
 def history():
-    # ---------INSERTING AN IMAGE-----------
-    '''
     cursor = mysql.connection.cursor()
-    file = open('static/apple_colour.jpg','rb').read()
-    file = base64.b64encode(file) # We must encode the file to get base64 string
-    cursor.execute('INSERT INTO IMAGETABLE (IMAGE) VALUES (%s)', (file,))
-    mysql.connection.commit()
-    '''
-    # ----------SELECTING AN IMAGE----------
-    '''
-    cursor = mysql.connection.cursor()
-    cursor.execute('SELECT IMAGE FROM IMAGETABLE WHERE ID = 1 ')
+    cursor.execute(
+        'SELECT photo,pred FROM IMAGETABLE WHERE username = %s ORDER BY date_entry DESC', (session['username'],))
     data = cursor.fetchall()
-    # The returned data will be a list of lists
-    image = data[0][0]
-    # Decode the string
-    binary_data = base64.b64decode(image)
-    image = Image.open(io.BytesIO(binary_data))
-    '''
-    return render_template('carousel.html')
+    if len(data) == 0:
+        return render_template('errorpage.html', message="No History found!!")
+    images = []
+    preds = []
+    for item in data:
+        (image,pred) = item
+        binary_data = base64.b64decode(image)
+        im = io.BytesIO(binary_data)
+        encoded_img_data = base64.b64encode(im.getvalue())
+        images.append(encoded_img_data.decode('utf-8'))
+        preds.append(pred)
+    return render_template('history.html', photos = images, preds = preds)
