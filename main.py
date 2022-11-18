@@ -15,7 +15,7 @@ WMLCredentials = {
 }
 client = APIClient(WMLCredentials)
 client.set.default_space("12f0d23b-8918-45db-a632-01c21bee5035")
-model_id = "7a55f72e-8a35-4f60-891e-ae833db7f9d6"
+model_id = "9a345915-1cbd-41de-938a-7c04ede93f31"
 
 try:
     client.repository.download(model_id, 'dn.tgz')
@@ -90,10 +90,10 @@ def uploaded():
 def showimage():
     if 'loggedin' in session:
         img_filename = request.args['filename']
-        model = load_model('model_wo_aug.h5')
+        model = load_model('final_model.h5')
         classes = ['Corpse Flower','Great Indian Bustard Bird','Lady Slipper Orchid Flower',
                    'Pangolin Mammal','Senenca White Deer Mammal','Spoon Billed Sandpiper Bird']
-
+        
         img = image.load_img(os.path.join(app.config['UPLOAD_FOLDER'], img_filename), target_size=(64, 64))
         img = image.img_to_array(img)
         img = np.expand_dims(img, axis=0)
