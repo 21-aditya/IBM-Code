@@ -3,12 +3,14 @@ import MySQLdb.cursors
 from PIL import Image
 from flask import Flask, redirect, render_template, request, session, url_for
 from flask_mysqldb import MySQL
+from flask_mail import Mail, Message
 from werkzeug.utils import secure_filename
 from ibm_watson_machine_learning import APIClient
 import tarfile,base64
 from keras.models import load_model
 from keras.preprocessing import image
 import numpy as np
+import smtplib
 
 WMLCredentials = {
     "url": "https://eu-de.ml.cloud.ibm.com",
@@ -21,7 +23,7 @@ model_id = "9a345915-1cbd-41de-938a-7c04ede93f31"
 try:
     client.repository.download(model_id, 'dn.tgz')
     model = tarfile.open('dn.tgz')
-    model.extractall('/Users/adityaramachandran/Library/CloudStorage/OneDrive-Personal/Documents/Sem-7/IBM-Project/IBM-Code')
+    model.extractall('.')
     model.close()
 except:
     print("File exists!!")
@@ -39,6 +41,15 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 mysql = MySQL(app)
 
+# configuration of mail
+app.config['MAIL_SERVER']='smtp-relay.sendinblue.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'digital.naturalist@yahoo.com'
+app.config['MAIL_PASSWORD'] = 'zYjFPqIAK78UMg5d'
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+mail = Mail(app)
+   
 @app.route('/', methods=['GET', 'POST'])
 def login():
     msg = '' # Output message
@@ -142,6 +153,16 @@ def register():
                 'INSERT INTO accounts VALUES (NULL, %s, %s, %s)', (username, password, email,))
             mysql.connection.commit()
             msg = 'You have successfully registered!'
+            
+            msg1 = Message(
+                'Confirmation Mail - Digital Naturalist',
+                sender ='digital.naturalist@yahoo.com',
+                recipients = [email]
+               )
+            msg1.body = 'This mail is to inform you that your account has been sucessfully registered\n\nUsername: ' + username + '\nPassword: ' + password + '\n'
+            mail.send(msg1)
+            
+
     elif request.method == 'POST':
         # Form is empty... (no POST data)
         msg = 'Please fill out the form!'
